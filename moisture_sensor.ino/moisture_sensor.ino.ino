@@ -39,9 +39,10 @@ void setup() {
 
   // initialize I2C bus and digital sensor
   Wire.begin();
-
   sensor.begin(); // reset sensor
   delay(1000); // give some time to boot up
+
+  // write diagnostic information on sensor
   Serial.print("I2C Soil Moisture Sensor Address: ");
   Serial.println(sensor.getAddress(), HEX);
   Serial.print("Sensor Firmware version: ");
@@ -91,7 +92,7 @@ void setup() {
 
 
 void loop() {
-  
+
   //Check if WiFi is down, wait for reconnect and flash LED if so
   while (WiFi.status() != WL_CONNECTED) {
     digitalWrite(LED_BUILTIN, LOW);    // LED on
@@ -117,6 +118,24 @@ void loop() {
   //TODO: light = sensor.getLight(true)
   //TODO: sensor.sleep(); // available since FW 2.3
 
+  //restart i2c bus is down
+  while (capacitance == 65535) {
+
+    //reset i2c bus and flash while giving time to boot up
+    Serial.println("sensor down, trying to restart i2c...");
+    Wire.begin();
+    sensor.begin(); // reset sensor
+    for (int i = 0; i < 20; i++) {
+      digitalWrite(LED_BUILTIN, LOW);    // LED on
+      delay(50);
+      digitalWrite(LED_BUILTIN, HIGH);   // LED off
+      delay(50);
+    }
+    // read new measurement
+    capacitance = sensor.getCapacitance();
+    temperature = sensor.getTemperature() / (float)10;
+  }
+
   // write diagnostic data to serial
   Serial.print(sensor_value);
   Serial.print("\t");
@@ -135,10 +154,9 @@ void loop() {
 
   // send data to ThingSpeak.com
   digitalWrite(LED_BUILTIN, LOW);    // LED on
-  delay(250);
+  delay(125);
   digitalWrite(LED_BUILTIN, HIGH);   // LED off
-  delay(250);
-
+  
   ThingSpeak.setField(1, voltage);
   ThingSpeak.setField(2, relative_moisture);
   ThingSpeak.setField(3, sensor_value);
@@ -149,7 +167,7 @@ void loop() {
   ThingSpeak.writeFields(myChannelNumber, myWriteAPIKey);
 
   digitalWrite(LED_BUILTIN, LOW);    // LED on
-  delay(250);
+  delay(125);
   digitalWrite(LED_BUILTIN, HIGH);   // LED off
 
   // wait 20 seconds, ThingSpeak will only accept updates every 15 seconds.
